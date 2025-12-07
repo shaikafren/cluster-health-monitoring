@@ -3,35 +3,27 @@ kind: DaemonSet
 metadata:
   name: node-exporter
   namespace: monitoring
+  labels:
+    k8s-app: node-exporter
 spec:
   selector:
     matchLabels:
-      app: node-exporter
+      k8s-app: node-exporter
   template:
     metadata:
       labels:
-        app: node-exporter
+        k8s-app: node-exporter
     spec:
       hostNetwork: true
       hostPID: true
-
-      # Allow running on master nodes also
-      tolerations:
-      - operator: Exists
-
       containers:
       - name: node-exporter
         image: prom/node-exporter:latest
-
         ports:
         - containerPort: 9100
           hostPort: 9100
-
-        args:
-        - --path.rootfs=/
-
         resources:
-          requests:
-            cpu: 50m
-            memory: 50Mi
+          limits:
+            cpu: 100m
+            memory: 180Mi
 

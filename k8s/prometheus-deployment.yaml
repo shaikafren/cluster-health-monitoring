@@ -1,49 +1,37 @@
 apiVersion: v1
-kind: Namespace
+kind: ServiceAccount
 metadata:
-  name: monitoring
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: prometheus-config
+  name: prometheus
   namespace: monitoring
-data:
-  prometheus.yml: |
-    global:
-      scrape_interval: 5s
-
-    scrape_configs:
-      - job_name: 'prometheus'
-        static_configs:
-          - targets: ['localhost:9090']
-
-      - job_name: 'kubernetes-nodes'
-        kubernetes_sd_configs:
-        - role: node
-
-      - job_name: 'kubernetes-pods'
-        kubernetes_sd_configs:
-        - role: pod
 ---
-apiVersion: v1
-kind: ConfigMap
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
 metadata:
-  name: alert-rules
+  name: prometheus
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/metrics
+  - nodes/proxy
+  - pods
+  - services
+  - endpoints
+  - namespaces
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
   namespace: monitoring
-data:
-  node-alerts.yaml: |
-    groups:
-      - name: node-alerts
-        rules:
-        - alert: HighCPU
-          expr: 100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 85
-          for: 2m
-          labels:
-            severity: warning
-          annotations:
-            description: "Node CPU usage > 85%"
-            summary: "High CPU usage"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -60,27 +48,22 @@ spec:
       labels:
         app: prometheus
     spec:
+      serviceAccountName: prometheus
       containers:
       - name: prometheus
-        image: prom/prometheus:latest
+        image: sana725/my-prometheus:latest
+        imagePullPolicy: Always
         args:
-          - "--config.file=/etc/prometheus/prometheus.yml"
-          - "--web.enable-lifecycle"
+        - "--config.file=/etc/prometheus/prometheus.yml"
         ports:
         - containerPort: 9090
         volumeMounts:
-        - name: prometheus-config-volume
-          mountPath: /etc/prometheus/prometheus.yml
-          subPath: prometheus.yml
-        - name: alert-rules-volume
-          mountPath: /etc/prometheus/rules/
+        - name: config-volume
+          mountPath: /etc/prometheus
       volumes:
-      - name: prometheus-config-volume
+      - name: config-volume
         configMap:
           name: prometheus-config
-      - name: alert-rules-volume
-        configMap:
-          name: alert-rules
 ---
 apiVersion: v1
 kind: Service
@@ -89,10 +72,10 @@ metadata:
   namespace: monitoring
 spec:
   type: NodePort
-  selector:
-    app: prometheus
   ports:
   - port: 9090
     targetPort: 9090
     nodePort: 30090
+  selector:
+    app: prometheus
 
