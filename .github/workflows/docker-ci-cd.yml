@@ -1,33 +1,34 @@
-name: CI/CD - Build and Push Docker Images
+
+name: Docker CI/CD
 
 on:
   push:
-    branches:
-      - main
+    branches: ["main"]
 
 jobs:
-  build-and-push:
-    name: Build & Push Images
+  build_and_push:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Log in to Docker Hub
+      - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Build & Push Grafana Image
-      - name: Build grafana image
-        run: |
-          docker build -t sana725/my-grafana:latest ./grafana
-          docker push sana725/my-grafana:latest
+      - name: Build and push Grafana image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./grafana
+          push: true
+          tags: sana725/my-grafana:latest
 
-      # Build & Push Prometheus Image
-      - name: Build prometheus image
-        run: |
-          docker build -t sana725/my-prometheus:latest ./prometheus
-          docker push sana725/my-prometheus:latest
+      - name: Build and push Prometheus image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./prometheus
+          push: true
+          tags: sana725/my-prometheus:latest
